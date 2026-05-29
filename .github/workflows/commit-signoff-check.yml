@@ -1,0 +1,12 @@
+name: Commit Sign-off Check
+on:
+  - pull_request_target
+
+jobs:
+  check-signed-commits:
+    name: Check signed commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: debezium/dbz/.github/actions/check-dco@main
+        with:
+          add-comments: "true"
