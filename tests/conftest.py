@@ -5,6 +5,9 @@ from __future__ import annotations
 import pytest
 
 from pydebeziumai.models.event import DebeziumEventModel
+from pydebeziumai.transformation.document_builder import DocumentBuilder
+from pydebeziumai.transformation.id_strategy import TablePkIdStrategy
+from pydebeziumai.transformation.projection_policy import ProjectionPolicy
 
 
 @pytest.fixture
@@ -60,4 +63,12 @@ def snapshot_event() -> DebeziumEventModel:
             "op": "r",
             "ts_ms": 1_700_000_003_000,
         },
+    )
+
+
+@pytest.fixture
+def document_builder() -> DocumentBuilder:
+    return DocumentBuilder(
+        id_strategy=TablePkIdStrategy(),
+        projection_policy=ProjectionPolicy.default_policy(),
     )
