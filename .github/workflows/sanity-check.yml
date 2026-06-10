@@ -1,8 +1,6 @@
 name: Commit message format check
 on:
   pull_request_target:
-    branches:
-      - main
 
 jobs:
   build:
