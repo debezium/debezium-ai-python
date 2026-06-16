@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: debezium-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: testdb
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - ./setup_db.sql:/docker-entrypoint-initdb.d/setup_db.sql
