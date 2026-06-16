@@ -22,19 +22,24 @@ PYDBZENGINE_MIN_VERSION = "3.4.1.0"
 def generate_pom_content(version: str, connectors: list[str]) -> str:
     """Generate dynamic pom.xml content based on selected connectors."""
     dependencies = [
-        """    <dependency>
-      <groupId>io.debezium</groupId>
-      <artifactId>debezium-embedded</artifactId>
-      <version>${debezium.version}</version>
-    </dependency>"""
+        "    <dependency>\n"
+        "      <groupId>io.debezium</groupId>\n"
+        "      <artifactId>debezium-embedded</artifactId>\n"
+        "      <version>${debezium.version}</version>\n"
+        "    </dependency>",
+        "    <dependency>\n"
+        "      <groupId>org.slf4j</groupId>\n"
+        "      <artifactId>slf4j-simple</artifactId>\n"
+        "      <version>1.7.36</version>\n"
+        "    </dependency>",
     ]
     for conn in connectors:
         dependencies.append(
-            f"""    <dependency>
-      <groupId>io.debezium</groupId>
-      <artifactId>debezium-connector-{conn}</artifactId>
-      <version>${{debezium.version}}</version>
-    </dependency>"""
+            "    <dependency>\n"
+            "      <groupId>io.debezium</groupId>\n"
+            f"      <artifactId>debezium-connector-{conn}</artifactId>\n"
+            "      <version>${{debezium.version}}</version>\n"
+            "    </dependency>"
         )
 
     dependencies_str = "\n".join(dependencies)
