@@ -6,9 +6,6 @@ import logging
 import queue
 import random
 import time
-from typing import Any
-
-from langchain_core.documents import Document
 
 from pydebeziumai.adapters.base import VectorStoreAdapter
 from pydebeziumai.models.event import DebeziumEventModel
@@ -20,17 +17,32 @@ logger = logging.getLogger(__name__)
 class DeadLetterQueue:
     """Thread-safe Dead Letter Queue (DLQ) to hold failed events."""
 
-    def __init__(self) -> None:
-        self._queue: queue.Queue[tuple[DebeziumEventModel, Exception]] = queue.Queue()
+    def __init__(self, max_size: int = 1000) -> None:
+        """Initialises the DeadLetterQueue.
+
+        Args:
+            max_size: Maximum number of events to hold in the queue.
+                      A max_size <= 0 means infinite size.
+        """
+        self._queue: queue.Queue[tuple[DebeziumEventModel, Exception]] = queue.Queue(maxsize=max_size)
 
     def put(self, event: DebeziumEventModel, exception: Exception) -> None:
         """Add a failed event and its causing exception to the DLQ.
+
+        If the queue is full, the event is dropped and a warning is logged.
 
         Args:
             event: The DebeziumEventModel that failed to sync.
             exception: The Exception raised during synchronization.
         """
-        self._queue.put((event, exception))
+        try:
+            self._queue.put((event, exception), block=False)
+        except queue.Full:
+            logger.warning(
+                "Dead Letter Queue is full (max_size=%d). Dropping failed event: %s",
+                self._queue.maxsize,
+                event.key,
+            )
 
     def get(self, block: bool = True, timeout: float | None = None) -> tuple[DebeziumEventModel, Exception]:
         """Retrieve a failed event and exception from the DLQ.
@@ -171,26 +183,10 @@ class SyncManager:
 
         elif op == "d":
             if self.soft_delete:
-                page_content, row_metadata = self.document_builder.projection_policy.project(event)
-                system_meta: dict[str, Any] = {
-                    "_table": event.table_name,
-                    "_schema": event.schema_name,
-                    "_op": op,
-                    "_doc_id": doc_id,
-                    "_is_deleted": True,
-                }
-                if event.payload.ts_ms is not None:
-                    system_meta["_ts_ms"] = event.payload.ts_ms
-
-                metadata = {**row_metadata, **self.document_builder.extra_metadata, **system_meta}
-                metadata = self.document_builder._sanitize_metadata(metadata)
-
-                document = Document(
-                    page_content=page_content,
-                    metadata=metadata,
-                    id=doc_id,
-                )
-                self.vector_store_adapter.upsert(document)
+                build_result = self.document_builder.build(event, allow_soft_delete=True)
+                if build_result.document is None:
+                    raise ValueError(f"DocumentBuilder built a None document for soft-delete event: {event}")
+                self.vector_store_adapter.upsert(build_result.document)
             else:
                 self.vector_store_adapter.delete(doc_id)
         else:
