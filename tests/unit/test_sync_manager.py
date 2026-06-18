@@ -179,3 +179,16 @@ def test_sync_retry_failure_to_dlq(
     failed_event, exc = dlq.get()
     assert failed_event == insert_event
     assert isinstance(exc, ConnectionError)
+
+
+def test_dlq_max_size_limit(insert_event: DebeziumEventModel) -> None:
+    dlq = DeadLetterQueue(max_size=2)
+    exc = ValueError("Test exception")
+
+    dlq.put(insert_event, exc)
+    dlq.put(insert_event, exc)
+    assert dlq.size() == 2
+
+    # Third put should exceed max_size, drop the event, and log a warning without raising Exception
+    dlq.put(insert_event, exc)
+    assert dlq.size() == 2
