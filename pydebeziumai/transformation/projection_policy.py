@@ -132,7 +132,9 @@ class ProjectionPolicy:
         Returns empty content string for delete events (no `after` row).
         """
         table = event.table_name
+        is_override = table in self.overrides
         policy = self.overrides.get(table, self.default)
+        logger.debug("Projecting fields for table=%r using %s policy", table, "override" if is_override else "default")
         row = event.payload.current_row or {}
         return policy.project_row(row)
 

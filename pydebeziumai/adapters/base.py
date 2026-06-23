@@ -9,6 +9,7 @@ Keeping this boundary explicit means:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -44,6 +45,11 @@ class VectorStoreAdapter(ABC):
         ...
 
     @abstractmethod
-    def as_retriever(self, **kwargs: object) -> BaseRetriever:
+    def as_retriever(
+        self,
+        *,
+        metadata_filter: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> BaseRetriever:
         """Return a LangChain BaseRetriever backed by this vector store."""
         ...
