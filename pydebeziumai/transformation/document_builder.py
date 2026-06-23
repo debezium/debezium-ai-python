@@ -7,6 +7,7 @@ synchronization/vector-store layer. Each CDC event produces a
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -16,6 +17,8 @@ from langchain_core.documents import Document
 from pydebeziumai.models.event import DebeziumEventModel
 from pydebeziumai.transformation.id_strategy import IdStrategy, TablePkIdStrategy
 from pydebeziumai.transformation.projection_policy import ProjectionPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -83,9 +86,11 @@ class DocumentBuilder:
         """
         doc_id = self.id_strategy.generate(event)
         op = event.payload.op
+        logger.debug("Building document for doc_id=%s, op=%r, allow_soft_delete=%s", doc_id, op, allow_soft_delete)
 
         if event.payload.is_delete and not allow_soft_delete:
             # No document content needed — SyncManager will issue a delete
+            logger.debug("Tombstone delete event for doc_id=%s, skipping document body building", doc_id)
             return BuildResult(doc_id=doc_id, op=op, document=None)
 
         page_content, row_metadata = self.projection_policy.project(event)
@@ -114,4 +119,5 @@ class DocumentBuilder:
             id=doc_id,
         )
 
+        logger.info("Successfully built Document for doc_id=%s (page_content_len=%d)", doc_id, len(page_content))
         return BuildResult(doc_id=doc_id, op=op, document=document)

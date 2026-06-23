@@ -37,6 +37,12 @@ class DeadLetterQueue:
         """
         try:
             self._queue.put((event, exception), block=False)
+            logger.info(
+                "Event key=%s routed to Dead Letter Queue (current_size=%d) due to error: %s",
+                event.key,
+                self.size(),
+                exception,
+            )
         except queue.Full:
             logger.warning(
                 "Dead Letter Queue is full (max_size=%d). Dropping failed event: %s",
@@ -168,12 +174,14 @@ class SyncManager:
         op = event.payload.op
 
         if op in ("c", "r"):
+            logger.info("Syncing insert/snapshot for doc_id=%s (destination=%s)", doc_id, event.destination)
             build_result = self.document_builder.build(event)
             if build_result.document is None:
                 raise ValueError(f"DocumentBuilder built a None document for create/read event: {event}")
             self.vector_store_adapter.upsert(build_result.document)
 
         elif op == "u":
+            logger.info("Syncing update (delete + upsert) for doc_id=%s (destination=%s)", doc_id, event.destination)
             build_result = self.document_builder.build(event)
             if build_result.document is None:
                 raise ValueError(f"DocumentBuilder built a None document for update event: {event}")
@@ -183,11 +191,14 @@ class SyncManager:
 
         elif op == "d":
             if self.soft_delete:
+                logger.info("Syncing soft-delete (upsert) for doc_id=%s (destination=%s)", doc_id, event.destination)
                 build_result = self.document_builder.build(event, allow_soft_delete=True)
                 if build_result.document is None:
                     raise ValueError(f"DocumentBuilder built a None document for soft-delete event: {event}")
                 self.vector_store_adapter.upsert(build_result.document)
             else:
+                logger.info("Syncing hard-delete for doc_id=%s (destination=%s)", doc_id, event.destination)
                 self.vector_store_adapter.delete(doc_id)
         else:
             raise ValueError(f"Unsupported operation type: {op}")
+        logger.debug("Successfully synced doc_id=%s (op=%s)", doc_id, op)
