@@ -85,8 +85,8 @@ class MilvusAdapter(VectorStoreAdapter):
         """
         if not document.id:
             raise ValueError("Document ID must be provided for idempotent upserts.")
-        self._store.add_documents(documents=[document], ids=[document.id])
         logger.debug("Milvus upsert: %s", document.id)
+        self._store.add_documents(documents=[document], ids=[document.id])
 
     def delete(self, doc_id: str) -> None:
         """Remove a document by its stable ID.
@@ -95,20 +95,52 @@ class MilvusAdapter(VectorStoreAdapter):
             doc_id: The stable ID of the document to remove.
         """
         try:
-            self._store.delete(ids=[doc_id])
             logger.debug("Milvus delete: %s", doc_id)
+            self._store.delete(ids=[doc_id])
         except Exception as exc:
             logger.debug("Milvus delete skipped for %r: %s", doc_id, exc)
 
-    def as_retriever(self, **kwargs: Any) -> BaseRetriever:
+    @staticmethod
+    def _dict_to_milvus_expr(filter_dict: dict[str, Any]) -> str:
+        """Helper to convert a dictionary of metadata filters into a Milvus boolean expression string."""
+        expr_parts = []
+        for key, val in filter_dict.items():
+            if isinstance(val, str):
+                escaped_val = val.replace("'", "\\'")
+                expr_parts.append(f"{key} == '{escaped_val}'")
+            elif isinstance(val, bool):
+                expr_parts.append(f"{key} == {str(val).lower()}")
+            elif val is None:
+                expr_parts.append(f"{key} == None")
+            else:
+                expr_parts.append(f"{key} == {val}")
+        return " and ".join(expr_parts)
+
+    def as_retriever(
+        self,
+        *,
+        metadata_filter: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> BaseRetriever:
         """Return a LangChain BaseRetriever backed by this vector store.
 
         Args:
+            metadata_filter: Optional dictionary of metadata key-values to filter by.
             **kwargs: Options for the retriever (e.g. search_kwargs={"k": 5}).
 
         Returns:
             A LangChain BaseRetriever.
         """
+        if metadata_filter:
+            expr_str = self._dict_to_milvus_expr(metadata_filter)
+            if "search_kwargs" not in kwargs:
+                kwargs["search_kwargs"] = {}
+            existing_expr = kwargs["search_kwargs"].get("expr")
+            if existing_expr:
+                kwargs["search_kwargs"]["expr"] = f"({existing_expr}) and ({expr_str})"
+            else:
+                kwargs["search_kwargs"]["expr"] = expr_str
+
         return self._store.as_retriever(**kwargs)
 
     @property
