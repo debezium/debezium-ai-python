@@ -17,6 +17,9 @@ from pydebeziumai.adapters.milvus import MilvusAdapter
 @pytest.fixture
 def milvus_adapter() -> Generator[MilvusAdapter, None, None]:
     """Fixture providing a MilvusAdapter pointing to a local Milvus Lite DB."""
+    pytest.importorskip("langchain_milvus")
+    pytest.importorskip("pymilvus")
+
     # Use a short unique DB name to satisfy Milvus Lite's < 36 characters constraint
     unique_db_path = f"/tmp/m_{uuid.uuid4().hex[:8]}.db"
 
