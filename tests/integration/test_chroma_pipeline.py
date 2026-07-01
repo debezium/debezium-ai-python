@@ -51,6 +51,24 @@ def test_chroma_as_retriever(chroma_adapter: ChromaAdapter) -> None:
     assert results[0].id == "test_id_retriever"
 
 
+def test_chroma_metadata_filtering(chroma_adapter: ChromaAdapter) -> None:
+    """Verify that ChromaAdapter retrieves only filtered metadata matching documents."""
+    doc_match = Document(
+        page_content="Electronics topic query", metadata={"category": "electronics", "tenant": "user1"}, id="doc_match"
+    )
+    doc_skip = Document(
+        page_content="Electronics topic query", metadata={"category": "clothing", "tenant": "user1"}, id="doc_skip"
+    )
+    chroma_adapter.upsert(doc_match)
+    chroma_adapter.upsert(doc_skip)
+
+    # Filter exactly category=electronics
+    retriever = chroma_adapter.as_retriever(metadata_filter={"category": "electronics"}, search_kwargs={"k": 2})
+    results = retriever.invoke("Electronics topic query")
+    assert len(results) == 1
+    assert results[0].id == "doc_match"
+
+
 def test_e2e_pipeline_chroma_hard_delete(
     chroma_adapter: ChromaAdapter,
     document_builder: DocumentBuilder,
