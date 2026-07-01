@@ -55,13 +55,28 @@ class ChromaAdapter(VectorStoreAdapter):
         """
         self._vector_store.delete(ids=[doc_id])
 
-    def as_retriever(self, **kwargs: Any) -> BaseRetriever:
+    def as_retriever(
+        self,
+        *,
+        metadata_filter: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> BaseRetriever:
         """Return a LangChain BaseRetriever backed by this vector store.
 
         Args:
+            metadata_filter: Optional dictionary of metadata key-values to filter by.
             **kwargs: Options for the retriever (e.g. search_kwargs={"k": 5}).
 
         Returns:
             A LangChain BaseRetriever.
         """
+        if metadata_filter:
+            if "search_kwargs" not in kwargs:
+                kwargs["search_kwargs"] = {}
+            existing_filter = kwargs["search_kwargs"].get("filter", {})
+            if existing_filter:
+                kwargs["search_kwargs"]["filter"] = {"$and": [existing_filter, metadata_filter]}
+            else:
+                kwargs["search_kwargs"]["filter"] = metadata_filter
+
         return self._vector_store.as_retriever(**kwargs)
