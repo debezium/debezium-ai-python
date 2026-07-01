@@ -53,7 +53,9 @@ class TablePkIdStrategy(IdStrategy):
                 f"Please define a primary key in your database or configure 'pk_fields' "
                 f"to specify which columns to use as the primary key."
             )
-        return f"{prefix}:{pk}"
+        doc_id = f"{prefix}:{pk}"
+        logger.debug("TablePkIdStrategy generated doc_id=%s", doc_id)
+        return doc_id
 
 
 class CompositeIdStrategy(IdStrategy):
@@ -74,7 +76,9 @@ class CompositeIdStrategy(IdStrategy):
         values = {f: row.get(f) for f in self.pk_fields}
         values_str = json.dumps(values, sort_keys=True, default=str)
         pk_hash = hashlib.sha256(values_str.encode()).hexdigest()[:20]
-        return f"{prefix}:{pk_hash}"
+        doc_id = f"{prefix}:{pk_hash}"
+        logger.debug("CompositeIdStrategy generated doc_id=%s from fields %s", doc_id, self.pk_fields)
+        return doc_id
 
 
 class CustomIdStrategy(IdStrategy):
@@ -84,7 +88,9 @@ class CustomIdStrategy(IdStrategy):
         self._fn = fn
 
     def generate(self, event: DebeziumEventModel) -> str:
-        return self._fn(event)
+        doc_id = self._fn(event)
+        logger.debug("CustomIdStrategy generated doc_id=%s", doc_id)
+        return doc_id
 
 
 _BUILTIN: dict[str, type[IdStrategy]] = {
