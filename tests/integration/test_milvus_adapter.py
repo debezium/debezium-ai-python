@@ -102,3 +102,23 @@ def test_milvus_adapter_upsert_missing_id(milvus_adapter: MilvusAdapter) -> None
     with pytest.raises(ValueError) as exc_info:
         milvus_adapter.upsert(doc)
     assert "Document ID must be provided" in str(exc_info.value)
+
+
+def test_milvus_adapter_metadata_filtering(milvus_adapter: MilvusAdapter) -> None:
+    """Verify that MilvusAdapter filters documents matching metadata expression."""
+    doc_match = Document(
+        page_content="Matching product description", metadata={"category": "books", "in_stock": True}, id="doc_match"
+    )
+    doc_skip = Document(
+        page_content="Matching product description", metadata={"category": "clothing", "in_stock": True}, id="doc_skip"
+    )
+
+    milvus_adapter.upsert(doc_match)
+    milvus_adapter.upsert(doc_skip)
+
+    # Filter with category == books
+    retriever = milvus_adapter.as_retriever(metadata_filter={"category": "books"}, search_kwargs={"k": 2})
+    results = retriever.invoke("Matching product")
+    assert len(results) == 1
+    doc_id = results[0].id or results[0].metadata.get("pk")
+    assert doc_id == "doc_match"

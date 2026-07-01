@@ -142,3 +142,16 @@ def test_pgvector_adapter_as_retriever(mock_pgvector: MagicMock) -> None:
 
     adapter.as_retriever(search_kwargs={"k": 3})
     adapter.store.as_retriever.assert_called_once_with(search_kwargs={"k": 3})
+
+
+def test_pgvector_adapter_metadata_filtering(mock_pgvector: MagicMock) -> None:
+    """Verify that PGVectorAdapter maps metadata_filter to search_kwargs filter dictionary."""
+    embeddings = FakeEmbeddings(size=128)
+    adapter = PGVectorAdapter(
+        connection_string="postgresql+psycopg://postgres:secret@localhost:5432/mydb",
+        collection_name="test_collection",
+        embeddings=embeddings,
+    )
+
+    adapter.as_retriever(metadata_filter={"category": "electronics"}, search_kwargs={"k": 3})
+    adapter.store.as_retriever.assert_called_once_with(search_kwargs={"k": 3, "filter": {"category": "electronics"}})
