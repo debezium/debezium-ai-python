@@ -29,6 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install "setuptools<70"
           pip install .[dev]
 
       - name: Verify code formatting (Ruff)
@@ -42,3 +43,8 @@ jobs:
 
       - name: Run unit tests
         run: pytest
+
+      - name: Build documentation (Sphinx)
+        run: |
+          cd docs
+          python -m sphinx.cmd.build -b html . _build/html
