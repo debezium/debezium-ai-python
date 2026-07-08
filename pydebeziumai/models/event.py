@@ -61,7 +61,7 @@ class DebeziumPayloadModel(BaseModel):
 
     @property
     def current_row(self) -> dict[str, Any] | None:
-        """The current row state: `after` for c/u/r, `before` for d."""
+        """Return current row state ('after' for c/u/r, 'before' for d)."""
         return self.after if self.op in ("c", "u", "r") else self.before
 
     @property

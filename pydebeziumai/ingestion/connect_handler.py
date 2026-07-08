@@ -114,7 +114,7 @@ class ConnectIngestionHandler(BaseIngestionHandler):
 
         Uses ``io.debezium.embedded.Connect`` format (Debezium 3.0+), which
         passes raw SourceRecord objects instead of JSON strings — matching the
-         ``DebeziumConnectEngine`` implementation.
+        ``DebeziumConnectEngine`` implementation.
         """
         import jpype
         from pydbzengine._jvm import DebeziumEngine, Properties
