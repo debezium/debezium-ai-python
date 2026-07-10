@@ -47,7 +47,7 @@ def create_retriever_tool(
             docs = retriever.invoke(query)
             formatted_docs = []
             for i, doc in enumerate(docs):
-                source = doc.metadata.get("source", "unknown")
+                source = doc.metadata.get("_table") or doc.metadata.get("source") or "unknown"
                 formatted_docs.append(f"Document {i + 1} (Source: {source}):\n{doc.page_content}")
             return "\n\n".join(formatted_docs)
 
