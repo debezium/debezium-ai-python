@@ -10,6 +10,16 @@ pydebeziumai provides real-time CDC (Change Data Capture) integration for LangCh
 
 .. toctree::
    :maxdepth: 2
+   :caption: User Documentation:
+
+   quickstart
+   architecture
+   compatibility
+   contributing
+   changelog
+
+.. toctree::
+   :maxdepth: 2
    :caption: API Reference:
 
    api/index
