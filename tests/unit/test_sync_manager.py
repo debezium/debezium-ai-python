@@ -29,11 +29,23 @@ class FakeVectorStoreAdapter(VectorStoreAdapter):
             raise ConnectionError("Simulated transient connection failure")
         self.upserts.append(document)
 
+    def upsert_batch(self, documents: list[Document]) -> None:
+        if self.should_fail and self.failure_count < self.max_failures:
+            self.failure_count += 1
+            raise ConnectionError("Simulated transient connection failure")
+        self.upserts.extend(documents)
+
     def delete(self, doc_id: str) -> None:
         if self.should_fail and self.failure_count < self.max_failures:
             self.failure_count += 1
             raise ConnectionError("Simulated transient connection failure")
         self.deletes.append(doc_id)
+
+    def delete_batch(self, doc_ids: list[str]) -> None:
+        if self.should_fail and self.failure_count < self.max_failures:
+            self.failure_count += 1
+            raise ConnectionError("Simulated transient connection failure")
+        self.deletes.extend(doc_ids)
 
     def as_retriever(self, **kwargs: object) -> BaseRetriever:
         raise NotImplementedError("Not needed for sync tests")

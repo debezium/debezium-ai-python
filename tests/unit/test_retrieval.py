@@ -30,7 +30,13 @@ class MockAdapter(VectorStoreAdapter):
     def upsert(self, document: Document) -> None:
         pass
 
+    def upsert_batch(self, documents: list[Document]) -> None:
+        pass
+
     def delete(self, doc_id: str) -> None:
+        pass
+
+    def delete_batch(self, doc_ids: list[str]) -> None:
         pass
 
     def as_retriever(self, **kwargs: Any) -> BaseRetriever:

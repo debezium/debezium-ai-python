@@ -35,12 +35,31 @@ class VectorStoreAdapter(ABC):
         ...
 
     @abstractmethod
+    def upsert_batch(self, documents: list[Document]) -> None:
+        """
+        Add or replace a list of documents in the vector store.
+
+        The implementation should use each ``document.id`` field as the
+        canonical identifier for idempotent upserts.
+        """
+        ...
+
+    @abstractmethod
     def delete(self, doc_id: str) -> None:
         """
         Remove a document by its stable ID.
 
         Implementations must handle the case where the ID does not exist
         (e.g. soft-delete stores, delete events arriving before inserts).
+        """
+        ...
+
+    @abstractmethod
+    def delete_batch(self, doc_ids: list[str]) -> None:
+        """
+        Remove a list of documents by their stable IDs in bulk.
+
+        Implementations must handle the case where the IDs do not exist.
         """
         ...
 
