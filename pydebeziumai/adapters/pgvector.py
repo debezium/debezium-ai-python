@@ -75,6 +75,22 @@ class PGVectorAdapter(VectorStoreAdapter):
         logger.debug("PGVector upsert: %s", document.id)
         self._store.add_documents(documents=[document], ids=[document.id])
 
+    def upsert_batch(self, documents: list[Document]) -> None:
+        """Add or replace a list of documents in the vector store.
+
+        Args:
+            documents: The list of LangChain Documents to upsert.
+        """
+        if not documents:
+            return
+        ids = []
+        for doc in documents:
+            if not doc.id:
+                raise ValueError("Document ID must be provided for idempotent upserts.")
+            ids.append(doc.id)
+        logger.debug("PGVector upsert_batch: %d documents", len(documents))
+        self._store.add_documents(documents=documents, ids=ids)
+
     def delete(self, doc_id: str) -> None:
         """Remove a document by its stable ID.
 
@@ -86,6 +102,20 @@ class PGVectorAdapter(VectorStoreAdapter):
             self._store.delete(ids=[doc_id])
         except Exception as exc:
             logger.debug("PGVector delete skipped for %r: %s", doc_id, exc)
+
+    def delete_batch(self, doc_ids: list[str]) -> None:
+        """Remove a list of documents by their stable IDs in bulk.
+
+        Args:
+            doc_ids: The stable IDs of the documents to remove.
+        """
+        if not doc_ids:
+            return
+        try:
+            logger.debug("PGVector delete_batch: %d documents", len(doc_ids))
+            self._store.delete(ids=doc_ids)
+        except Exception as exc:
+            logger.debug("PGVector delete_batch skipped: %s", exc)
 
     def as_retriever(
         self,

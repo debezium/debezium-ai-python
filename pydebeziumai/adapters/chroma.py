@@ -47,6 +47,21 @@ class ChromaAdapter(VectorStoreAdapter):
             raise ValueError("Document ID must be provided for idempotent upserts.")
         self._vector_store.add_documents([document], ids=[document.id])
 
+    def upsert_batch(self, documents: list[Document]) -> None:
+        """Add or replace a list of documents in the vector store.
+
+        Args:
+            documents: The list of LangChain Documents to upsert.
+        """
+        if not documents:
+            return
+        ids = []
+        for doc in documents:
+            if doc.id is None:
+                raise ValueError("Document ID must be provided for idempotent upserts.")
+            ids.append(doc.id)
+        self._vector_store.add_documents(documents, ids=ids)
+
     def delete(self, doc_id: str) -> None:
         """Remove a document by its stable ID.
 
@@ -54,6 +69,16 @@ class ChromaAdapter(VectorStoreAdapter):
             doc_id: The stable ID of the document to remove.
         """
         self._vector_store.delete(ids=[doc_id])
+
+    def delete_batch(self, doc_ids: list[str]) -> None:
+        """Remove a list of documents by their stable IDs in bulk.
+
+        Args:
+            doc_ids: The stable IDs of the documents to remove.
+        """
+        if not doc_ids:
+            return
+        self._vector_store.delete(ids=doc_ids)
 
     def as_retriever(
         self,
