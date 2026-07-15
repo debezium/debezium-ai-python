@@ -204,3 +204,64 @@ def test_dlq_max_size_limit(insert_event: DebeziumEventModel) -> None:
     # Third put should exceed max_size, drop the event, and log a warning without raising Exception
     dlq.put(insert_event, exc)
     assert dlq.size() == 2
+
+
+def test_sync_batch_compaction(
+    insert_event: DebeziumEventModel,
+    update_event: DebeziumEventModel,
+    delete_event: DebeziumEventModel,
+    document_builder: DocumentBuilder,
+) -> None:
+    adapter = FakeVectorStoreAdapter()
+    manager = SyncManager(
+        document_builder=document_builder,
+        vector_store_adapter=adapter,
+        soft_delete=False,
+    )
+
+    # 1. Compaction: Insert followed by Update followed by Delete on same doc_id
+    # All target "public.products:1". Compacted result should be just a single Delete.
+    manager.sync_batch([insert_event, update_event, delete_event])
+    assert len(adapter.upserts) == 0
+    assert len(adapter.deletes) == 1
+    assert adapter.deletes[0] == "public.products:1"
+
+    # Reset adapter
+    adapter.deletes.clear()
+    adapter.upserts.clear()
+
+    # 2. Compaction: Insert followed by Update on same doc_id
+    # Compacted result should be a single Delete (from Update's replace rule) and single Upsert of Update.
+    manager.sync_batch([insert_event, update_event])
+    assert len(adapter.deletes) == 1
+    assert adapter.deletes[0] == "public.products:1"
+    assert len(adapter.upserts) == 1
+    assert adapter.upserts[0].id == "public.products:1"
+    assert adapter.upserts[0].metadata["_op"] == "u"
+
+
+def test_sync_batch_error_fallback(
+    insert_event: DebeziumEventModel,
+    snapshot_event: DebeziumEventModel,
+    document_builder: DocumentBuilder,
+) -> None:
+    adapter = FakeVectorStoreAdapter()
+    dlq = DeadLetterQueue()
+    manager = SyncManager(
+        document_builder=document_builder,
+        vector_store_adapter=adapter,
+        dlq=dlq,
+    )
+
+    # Set up failure on bulk upsert (FakeVectorStoreAdapter throws on upsert/upsert_batch if configured)
+    adapter.should_fail = True
+    adapter.max_failures = 10  # Exceeds standard retry threshold to force fallback
+
+    # Run sync_batch: since bulk fail is persistent, it should fall back to sequential sync.
+    # But wait, sequential sync will also fail unless we can isolate the failure.
+    # Let's test that fallback to sync(event) occurs when batch fails.
+    with patch.object(manager, "sync") as mock_sync:
+        manager.sync_batch([insert_event, snapshot_event])
+        assert mock_sync.call_count == 2
+        mock_sync.assert_any_call(insert_event)
+        mock_sync.assert_any_call(snapshot_event)

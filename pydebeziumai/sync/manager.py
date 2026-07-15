@@ -7,6 +7,8 @@ import queue
 import random
 import time
 
+from langchain_core.documents import Document
+
 from pydebeziumai.adapters.base import VectorStoreAdapter
 from pydebeziumai.models.event import DebeziumEventModel
 from pydebeziumai.transformation.document_builder import DocumentBuilder
@@ -109,6 +111,7 @@ class SyncManager:
         soft_delete: bool = False,
         retry_config: RetryConfig | None = None,
         dlq: DeadLetterQueue | None = None,
+        max_workers: int | None = None,
     ) -> None:
         """Initialises the SyncManager.
 
@@ -119,12 +122,14 @@ class SyncManager:
                          instead of hard-deleting the document.
             retry_config: Settings for transient error retries.
             dlq: Optional DeadLetterQueue to capture failed events.
+            max_workers: Maximum number of worker threads for parallel document building.
         """
         self.document_builder = document_builder
         self.vector_store_adapter = vector_store_adapter
         self.soft_delete = soft_delete
         self.retry_config = retry_config or RetryConfig()
         self.dlq = dlq or DeadLetterQueue()
+        self._max_workers = max_workers
 
     def sync(self, event: DebeziumEventModel) -> None:
         """Synchronise a Debezium change event to the vector store.
@@ -202,3 +207,96 @@ class SyncManager:
         else:
             raise ValueError(f"Unsupported operation type: {op}")
         logger.debug("Successfully synced doc_id=%s (op=%s)", doc_id, op)
+
+    def sync_batch(self, events: list[DebeziumEventModel]) -> None:
+        """Synchronise a batch of Debezium change events to the vector store.
+
+        Compacts the batch by doc_id to only apply the final state of each record.
+        If the batch synchronization fails after all retry attempts, it falls back
+        to sequential synchronization to isolate and route failing events to the DLQ.
+        """
+        if not events:
+            return
+
+        try:
+            self._sync_batch_with_retry(events)
+        except Exception as exc:
+            logger.warning(
+                "Batch sync failed. Falling back to sequential synchronization to isolate errors: %s",
+                exc,
+            )
+            for event in events:
+                self.sync(event)
+
+    def _sync_batch_with_retry(self, events: list[DebeziumEventModel]) -> None:
+        retries = 0
+        while True:
+            try:
+                self._execute_sync_batch(events)
+                return
+            except Exception as exc:
+                retries += 1
+                if retries > self.retry_config.max_retries:
+                    raise exc
+
+                delay = self.retry_config.initial_delay * (self.retry_config.backoff_factor ** (retries - 1))
+                if self.retry_config.jitter:
+                    delay *= random.uniform(0.5, 1.5)
+
+                logger.warning("Batch sync attempt %d failed: %s. Retrying in %.2fs...", retries, exc, delay)
+                time.sleep(delay)
+
+    def _execute_sync_batch(self, events: list[DebeziumEventModel]) -> None:
+        # Step 1: Compact by doc_id
+        doc_id_to_event = {}
+        for event in events:
+            try:
+                doc_id = self.document_builder.id_strategy.generate(event)
+                doc_id_to_event[doc_id] = event
+            except Exception as exc:
+                logger.error("Failed to generate doc_id for event %s: %s", event.key, exc)
+                self.dlq.put(event, exc)
+
+        to_delete = []
+        to_upsert_events = []
+        for doc_id, event in doc_id_to_event.items():
+            op = event.payload.op
+            if op == "d":
+                if self.soft_delete:
+                    to_upsert_events.append(event)
+                else:
+                    to_delete.append(doc_id)
+            elif op == "u":
+                to_delete.append(doc_id)
+                to_upsert_events.append(event)
+            elif op in ("c", "r"):
+                to_upsert_events.append(event)
+
+        # Step 2: Build documents in parallel
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _build_doc(evt: DebeziumEventModel) -> Document | None:
+            try:
+                allow_soft = self.soft_delete and evt.payload.is_delete
+                build_result = self.document_builder.build(evt, allow_soft_delete=allow_soft)
+                return build_result.document
+            except Exception as e:
+                logger.error("Failed to build document for event %s: %s", evt.key, e)
+                self.dlq.put(evt, e)
+                return None
+
+        if to_upsert_events:
+            with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+                documents = list(executor.map(_build_doc, to_upsert_events))
+            valid_documents = [doc for doc in documents if doc is not None]
+        else:
+            valid_documents = []
+
+        # Step 3: Execute vector store operations
+        if to_delete:
+            logger.info("Executing batch delete for %d IDs", len(to_delete))
+            self.vector_store_adapter.delete_batch(to_delete)
+
+        if valid_documents:
+            logger.info("Executing batch upsert for %d documents", len(valid_documents))
+            self.vector_store_adapter.upsert_batch(valid_documents)
