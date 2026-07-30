@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pydebeziumai"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Real-time CDC Integration for LangChain & LangGraph using Debezium"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -76,6 +76,20 @@ dev = [
 Homepage = "https://github.com/debezium/debezium-ai-python"
 Documentation = "https://github.com/debezium/debezium-ai-python"
 Issues = "https://github.com/debezium/dbz/issues"
+
+[tool.hatch.version]
+path = "pydebeziumai/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/pydebeziumai",
+    "/tests",
+    "/docs",
+    "/examples",
+    "/README.md",
+    "/LICENSE.txt",
+    "/pyproject.toml",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["pydebeziumai"]
