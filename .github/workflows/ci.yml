@@ -48,3 +48,10 @@ jobs:
         run: |
           cd docs
           python -m sphinx.cmd.build -b html . _build/html
+
+      - name: Build package and check metadata
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+

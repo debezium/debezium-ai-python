@@ -6,6 +6,8 @@ import logging
 import queue
 import random
 import time
+from collections.abc import Callable
+from typing import Any
 
 from langchain_core.documents import Document
 
@@ -14,6 +16,7 @@ from pydebeziumai.models.event import DebeziumEventModel
 from pydebeziumai.transformation.document_builder import DocumentBuilder
 
 logger = logging.getLogger(__name__)
+_PERMANENT_ERRORS = (ValueError, TypeError, KeyError, AttributeError, NameError, ImportError)
 
 
 class DeadLetterQueue:
@@ -146,17 +149,15 @@ class SyncManager:
             logger.error("Sync failed for event %s. Redirecting to DLQ: %s", event.key, exc)
             self.dlq.put(event, exc)
 
-    def _sync_with_retry(self, event: DebeziumEventModel) -> None:
-        """Attempt to synchronize an event using the retry policy.
-
-        Args:
-            event: The DebeziumEventModel to synchronize.
-        """
+    def _sync_with_retry_wrapper(self, func: Callable[..., Any], description: str, *args: Any, **kwargs: Any) -> None:
         retries = 0
         while True:
             try:
-                self._execute_sync(event)
+                func(*args, **kwargs)
                 return
+            except _PERMANENT_ERRORS as exc:
+                logger.error("Permanent error encountered during %s: %s. Bypassing retries.", description, exc)
+                raise exc
             except Exception as exc:
                 retries += 1
                 if retries > self.retry_config.max_retries:
@@ -166,8 +167,22 @@ class SyncManager:
                 if self.retry_config.jitter:
                     delay *= random.uniform(0.5, 1.5)
 
-                logger.warning("Sync attempt %d failed: %s. Retrying in %.2fs...", retries, exc, delay)
+                logger.warning(
+                    "%s attempt %d failed: %s. Retrying in %.2fs...",
+                    description.capitalize(),
+                    retries,
+                    exc,
+                    delay,
+                )
                 time.sleep(delay)
+
+    def _sync_with_retry(self, event: DebeziumEventModel) -> None:
+        """Attempt to synchronize an event using the retry policy.
+
+        Args:
+            event: The DebeziumEventModel to synchronize.
+        """
+        self._sync_with_retry_wrapper(self._execute_sync, f"sync for event key={event.key}", event)
 
     def _execute_sync(self, event: DebeziumEventModel) -> None:
         """Perform the synchronization operation based on CDC operation type.
@@ -175,8 +190,20 @@ class SyncManager:
         Args:
             event: The DebeziumEventModel to synchronize.
         """
-        doc_id = self.document_builder.id_strategy.generate(event)
         op = event.payload.op
+        if op not in ("c", "u", "d", "r"):
+            logger.warning("Skipping event with unsupported operation type: %r", op)
+            return
+
+        if op in ("c", "u", "r") and event.payload.current_row is None:
+            logger.warning(
+                "Skipping event with empty row payload (op=%r, destination=%r)",
+                op,
+                event.destination,
+            )
+            return
+
+        doc_id = self.document_builder.id_strategy.generate(event)
 
         if op in ("c", "r"):
             logger.info("Syncing insert/snapshot for doc_id=%s (destination=%s)", doc_id, event.destination)
@@ -229,28 +256,26 @@ class SyncManager:
                 self.sync(event)
 
     def _sync_batch_with_retry(self, events: list[DebeziumEventModel]) -> None:
-        retries = 0
-        while True:
-            try:
-                self._execute_sync_batch(events)
-                return
-            except Exception as exc:
-                retries += 1
-                if retries > self.retry_config.max_retries:
-                    raise exc
-
-                delay = self.retry_config.initial_delay * (self.retry_config.backoff_factor ** (retries - 1))
-                if self.retry_config.jitter:
-                    delay *= random.uniform(0.5, 1.5)
-
-                logger.warning("Batch sync attempt %d failed: %s. Retrying in %.2fs...", retries, exc, delay)
-                time.sleep(delay)
+        self._sync_with_retry_wrapper(self._execute_sync_batch, "batch sync", events)
 
     def _execute_sync_batch(self, events: list[DebeziumEventModel]) -> None:
         # Step 1: Compact by doc_id
         doc_id_to_event = {}
         for event in events:
             try:
+                op = event.payload.op
+                if op not in ("c", "u", "d", "r"):
+                    logger.warning("Skipping event with unsupported operation type in batch: %r", op)
+                    continue
+
+                if op in ("c", "u", "r") and event.payload.current_row is None:
+                    logger.warning(
+                        "Skipping event with empty row payload in batch (op=%r, destination=%r)",
+                        op,
+                        event.destination,
+                    )
+                    continue
+
                 doc_id = self.document_builder.id_strategy.generate(event)
                 doc_id_to_event[doc_id] = event
             except Exception as exc:
