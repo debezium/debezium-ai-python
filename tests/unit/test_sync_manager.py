@@ -265,3 +265,71 @@ def test_sync_batch_error_fallback(
         assert mock_sync.call_count == 2
         mock_sync.assert_any_call(insert_event)
         mock_sync.assert_any_call(snapshot_event)
+
+
+@patch("time.sleep", return_value=None)
+def test_sync_permanent_error_bypass_retry(
+    mock_sleep: MagicMock,
+    insert_event: DebeziumEventModel,
+    document_builder: DocumentBuilder,
+) -> None:
+    adapter = FakeVectorStoreAdapter()
+
+    # We patch the adapter's upsert to raise a ValueError (permanent error)
+    with patch.object(adapter, "upsert", side_effect=ValueError("Permanent data error")):
+        dlq = DeadLetterQueue()
+        manager = SyncManager(
+            document_builder=document_builder,
+            vector_store_adapter=adapter,
+            dlq=dlq,
+        )
+
+        manager.sync(insert_event)
+
+        # It should immediately route to the DLQ on the first failure without retrying
+        assert dlq.size() == 1
+        assert mock_sleep.call_count == 0
+
+
+def test_sync_ddl_and_unsupported_ops_skipped(
+    document_builder: DocumentBuilder,
+) -> None:
+    adapter = FakeVectorStoreAdapter()
+    dlq = DeadLetterQueue()
+    manager = SyncManager(
+        document_builder=document_builder,
+        vector_store_adapter=adapter,
+        dlq=dlq,
+    )
+
+    # 1. Non-data / DDL event (unsupported op)
+    ddl_event = MagicMock(spec=DebeziumEventModel)
+    ddl_event.payload = MagicMock()
+    ddl_event.payload.op = "ddl"
+    ddl_event.payload.current_row = None
+    ddl_event.destination = "inventory_server"
+    ddl_event.key = "ddl_key"
+
+    manager.sync(ddl_event)
+    assert len(adapter.upserts) == 0
+    assert len(adapter.deletes) == 0
+    assert dlq.is_empty()
+
+    # 2. Event with empty row state (op='c' but current_row is None)
+    empty_row_event = MagicMock(spec=DebeziumEventModel)
+    empty_row_event.payload = MagicMock()
+    empty_row_event.payload.op = "c"
+    empty_row_event.payload.current_row = None
+    empty_row_event.destination = "inventory_server"
+    empty_row_event.key = "empty_key"
+
+    manager.sync(empty_row_event)
+    assert len(adapter.upserts) == 0
+    assert len(adapter.deletes) == 0
+    assert dlq.is_empty()
+
+    # Test batch sync handles skipping too
+    manager.sync_batch([ddl_event, empty_row_event])
+    assert len(adapter.upserts) == 0
+    assert len(adapter.deletes) == 0
+    assert dlq.is_empty()
