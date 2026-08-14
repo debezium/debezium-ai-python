@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEBEZIUM_VERSION = "3.5.0.Final"
+DEBEZIUM_VERSION = "3.0.0.Final"
 PYDBZENGINE_MIN_VERSION = "3.4.1.0"
 
 
@@ -38,7 +38,7 @@ def generate_pom_content(version: str, connectors: list[str]) -> str:
             "    <dependency>\n"
             "      <groupId>io.debezium</groupId>\n"
             f"      <artifactId>debezium-connector-{conn}</artifactId>\n"
-            "      <version>${{debezium.version}}</version>\n"
+            "      <version>${debezium.version}</version>\n"
             "    </dependency>"
         )
 

@@ -144,7 +144,7 @@ class DebeziumEventModel(BaseModel):
     payload: DebeziumPayloadModel
 
     @classmethod
-    def from_json_record(cls, record: Any) -> DebeziumEventModel:
+    def from_json_record(cls, record: Any) -> DebeziumEventModel | None:
         """Parse from a pydbzengine ChangeEvent (JSON / polling mode)."""
         destination = str(record.destination()) if record.destination() else ""
         key_raw = record.key()
@@ -152,12 +152,20 @@ class DebeziumEventModel(BaseModel):
 
         value_str = record.value()
         if not value_str:
-            raise ValueError(f"Empty CDC event value at destination {destination!r}")
+            # Tombstone record (emitted by Debezium after DELETE for log compaction)
+            return None
 
         value_dict: dict[str, Any] = json.loads(str(value_str))
+        if not isinstance(value_dict, dict):
+            return None
+
         # Debezium JSON envelope: top-level has 'payload' key; flat mode doesn't
         schema_block = value_dict.get("schema")
         payload_dict = value_dict.get("payload", value_dict)
+
+        # Ignore DDL/schema change and metadata events that lack an 'op' field
+        if not isinstance(payload_dict, dict) or "op" not in payload_dict:
+            return None
 
         # Decode base64-encoded Decimal bytes using schema type hints
         if schema_block:
@@ -236,7 +244,7 @@ class DebeziumEventModel(BaseModel):
         Extract the primary key string for this event.
 
         Priority order:
-        1. Parse the JSON key field (Debezium Connect key schema).
+        1. Parse the JSON key field (handling Debezium Connect envelope 'payload' sub-dict).
         2. Extract from payload using ``pk_fields`` if provided.
         3. Return None if no primary key is found.
         """
@@ -244,6 +252,14 @@ class DebeziumEventModel(BaseModel):
             try:
                 key_dict = json.loads(self.key)
                 if isinstance(key_dict, dict):
+                    if "payload" in key_dict and isinstance(key_dict["payload"], dict):
+                        key_dict = key_dict["payload"]
+
+                    if pk_fields:
+                        values = [str(key_dict[f]) for f in pk_fields if f in key_dict]
+                        if values:
+                            return "|".join(values)
+
                     return "|".join(str(v) for v in key_dict.values())
             except (json.JSONDecodeError, TypeError):
                 return self.key

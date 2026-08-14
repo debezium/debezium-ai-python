@@ -119,6 +119,7 @@ class TestDebeziumEventModel:
                 )
 
         event = DebeziumEventModel.from_json_record(MockRecord())
+        assert event is not None
         assert event.table_name == "orders"
         assert event.payload.op == "c"
         assert event.payload.ts_ms == 12345
@@ -143,10 +144,11 @@ class TestDebeziumEventModel:
                 )
 
         event = DebeziumEventModel.from_json_record(MockRecord())
+        assert event is not None
         assert event.payload.op == "d"
         assert event.payload.before == {"id": 1, "email": "a@b.com"}
 
-    def test_empty_value_raises(self) -> None:
+    def test_empty_value_returns_none(self) -> None:
         class MockRecord:
             def destination(self) -> str | None:
                 return "test"
@@ -157,5 +159,4 @@ class TestDebeziumEventModel:
             def value(self) -> str | None:
                 return None
 
-        with pytest.raises(ValueError, match="Empty CDC event value"):
-            DebeziumEventModel.from_json_record(MockRecord())
+        assert DebeziumEventModel.from_json_record(MockRecord()) is None
