@@ -51,7 +51,8 @@ class JsonIngestionHandler(BaseIngestionHandler):
                 for record in records:
                     try:
                         event = DebeziumEventModel.from_json_record(record)
-                        outer._dispatch_event(event)
+                        if event is not None:
+                            outer._dispatch_event(event)
                     except Exception as exc:
                         outer._dispatch_error(exc, record)
                         if not outer._error_callbacks:

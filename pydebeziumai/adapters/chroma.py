@@ -45,6 +45,7 @@ class ChromaAdapter(VectorStoreAdapter):
         """
         if document.id is None:
             raise ValueError("Document ID must be provided for idempotent upserts.")
+        self.delete(document.id)
         self._vector_store.add_documents([document], ids=[document.id])
 
     def upsert_batch(self, documents: list[Document]) -> None:
@@ -60,6 +61,7 @@ class ChromaAdapter(VectorStoreAdapter):
             if doc.id is None:
                 raise ValueError("Document ID must be provided for idempotent upserts.")
             ids.append(doc.id)
+        self.delete_batch(ids)
         self._vector_store.add_documents(documents, ids=ids)
 
     def delete(self, doc_id: str) -> None:

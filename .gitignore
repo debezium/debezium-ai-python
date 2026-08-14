@@ -216,6 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+examples/streamlit_dashboard/*.dat
+examples/streamlit_dashboard/*.jsonl
+examples/streamlit_dashboard/*.db
+examples/streamlit_dashboard/.*.lock
+examples/streamlit_dashboard/test_demo_flow.py
 
 # Documentation zips
 docs.zip

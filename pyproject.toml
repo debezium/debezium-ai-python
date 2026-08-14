@@ -115,6 +115,10 @@ warn_return_any = false
 module = "numpy.*,numpy"
 follow_imports = "skip"
 
+[[tool.mypy.overrides]]
+module = "examples.streamlit_dashboard.*"
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

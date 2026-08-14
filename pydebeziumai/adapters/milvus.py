@@ -86,6 +86,7 @@ class MilvusAdapter(VectorStoreAdapter):
         if not document.id:
             raise ValueError("Document ID must be provided for idempotent upserts.")
         logger.debug("Milvus upsert: %s", document.id)
+        self.delete(document.id)
         self._store.add_documents(documents=[document], ids=[document.id])
 
     def upsert_batch(self, documents: list[Document]) -> None:
@@ -102,6 +103,7 @@ class MilvusAdapter(VectorStoreAdapter):
                 raise ValueError("Document ID must be provided for idempotent upserts.")
             ids.append(doc.id)
         logger.debug("Milvus upsert_batch: %d documents", len(documents))
+        self.delete_batch(ids)
         self._store.add_documents(documents=documents, ids=ids)
 
     def delete(self, doc_id: str) -> None:
