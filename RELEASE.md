@@ -25,7 +25,7 @@ Before tagging a release, verify that the following local checks pass:
    ```bash
    ruff format --check .
    ruff check .
-   mypy .
+   mypy --python-version 3.10 .
    ```
 3. **Documentation**: Build the Sphinx HTML documentation locally and ensure there are 0 warnings:
    ```bash

@@ -29,7 +29,7 @@ html_static_path = ["_static"]
 # Intersphinx links
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "pydantic": ("https://docs.pydantic.dev/latest/", None),
+    "pydantic": ("https://docs.pydantic.dev/", None),
 }
 
 # Autodoc configuration

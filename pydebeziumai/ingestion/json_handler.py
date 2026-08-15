@@ -26,7 +26,7 @@ class JsonIngestionHandler(BaseIngestionHandler):
     Usage::
 
         handler = JsonIngestionHandler()
-        handler.add_event_callback(sync_manager.handle_event)
+        handler.add_event_callback(sync_manager.sync)
         engine = handler.build_engine({
             "name": "engine",
             "connector.class": "io.debezium.connector.postgresql.PostgresConnector",

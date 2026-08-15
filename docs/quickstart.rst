@@ -163,7 +163,7 @@ Production Deployment Guidance
 When deploying ``pydebeziumai`` in a production environment:
 
 1. **Threading & Blocking Semantics**:
-   - The ``engine.start()`` execution blocks the calling thread. Always run the engine in a background worker thread or a standalone process (like a system daemon).
+   - The ``engine.run()`` execution blocks the calling thread. Always run the engine in a background worker thread or a standalone process (like a system daemon).
    - Secure shutdowns by calling ``engine.close()`` inside exit handlers (such as Python's ``atexit`` or signal handlers).
 
 2. **Handling the Dead Letter Queue (DLQ)**:

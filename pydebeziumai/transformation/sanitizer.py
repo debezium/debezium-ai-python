@@ -26,13 +26,7 @@ def sanitize_metadata(meta: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(v, decimal.Decimal):
             clean[k] = float(v)
         elif isinstance(v, (bytes, bytearray)):
-            # Debezium NUMERIC in JSON mode arrives as raw bytes
-            try:
-                # Try interpreting as big-endian signed int (Kafka Decimal)
-                int_val = int.from_bytes(bytes(v), byteorder="big", signed=True)
-                clean[k] = float(int_val)
-            except Exception:
-                clean[k] = bytes(v).hex()
+            clean[k] = bytes(v).hex()
         elif isinstance(v, (datetime, date, time)):
             clean[k] = v.isoformat()
         elif isinstance(v, timedelta):

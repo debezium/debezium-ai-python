@@ -34,7 +34,7 @@ All Python source code must use strict type annotations to ensure code safety, s
 * **Avoid `Any`**: Minimize the use of `Any`. Use generic types (`typing.TypeVar`, `typing.Generic`) or protocols (`typing.Protocol`) to type dynamic behaviors.
 * **Run Type Check**: Run MyPy locally before committing:
   ```bash
-  mypy .
+  mypy --python-version 3.10 .
   ```
 
 ---

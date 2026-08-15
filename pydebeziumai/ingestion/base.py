@@ -26,7 +26,7 @@ class BaseIngestionHandler(ABC):
     Usage::
 
         handler = JsonIngestionHandler()
-        handler.add_event_callback(sync_manager.handle_event)
+        handler.add_event_callback(sync_manager.sync)
         handler.add_error_callback(my_error_logger)
         engine = handler.build_engine(debezium_props)
         engine.run()
