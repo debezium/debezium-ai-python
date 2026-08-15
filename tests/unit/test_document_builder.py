@@ -31,10 +31,14 @@ class TestProjectionPolicy:
     def test_exclude_fields(self) -> None:
         policy = TableProjectionPolicy(exclude_fields=["password_hash", "blob"])
         row = {"id": 1, "name": "User", "password_hash": "abc", "blob": b"data"}
-        content, _ = policy.project_row(row)
+        content, metadata = policy.project_row(row)
         assert "password_hash" not in content
         assert "blob" not in content
         assert "name: User" in content
+        # Ensure excluded fields do not leak into metadata when metadata_fields is None
+        assert "password_hash" not in metadata
+        assert "blob" not in metadata
+        assert metadata["name"] == "User"
 
     def test_both_include_and_exclude_fields(self) -> None:
         policy = TableProjectionPolicy(

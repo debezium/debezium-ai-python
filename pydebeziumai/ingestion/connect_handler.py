@@ -42,7 +42,7 @@ class ConnectIngestionHandler(BaseIngestionHandler):
         handler = ConnectIngestionHandler(
             conversion_config=ConversionConfig(numeric_mode="native"),
         )
-        handler.add_event_callback(sync_manager.handle_event)
+        handler.add_event_callback(sync_manager.sync)
         engine = handler.build_engine(debezium_props)
         engine.run()
     """

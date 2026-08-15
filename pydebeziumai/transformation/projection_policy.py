@@ -82,7 +82,7 @@ class TableProjectionPolicy:
         if self.metadata_fields is not None:
             raw_meta = {k: v for k, v in row.items() if k in self.metadata_fields}
         else:
-            raw_meta = dict(row)
+            raw_meta = {k: v for k, v in row.items() if k not in self.exclude_fields}
 
         metadata = {k: _coerce_metadata_value(v) for k, v in raw_meta.items()}
         return page_content, metadata

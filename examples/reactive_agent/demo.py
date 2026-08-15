@@ -12,6 +12,14 @@ sys.path.append(os.path.dirname(__file__))
 
 import contextlib
 
+try:
+    import psycopg
+
+    PSYCOPG_INSTALLED = True
+except ImportError:
+    psycopg = None  # type: ignore[assignment]
+    PSYCOPG_INSTALLED = False
+
 from agent import get_agent
 from stream_sync import get_sync_manager, start_debezium_engine
 
@@ -40,23 +48,24 @@ def main() -> None:
     db_name = os.getenv("POSTGRES_DB", "inventory_db")
 
     # 3. Reset database state for prod_002 (Smart Water Bottle) to ensure demo starts in-stock
-    try:
-        import psycopg
-
-        with (
-            psycopg.connect(
-                host=db_host,
-                port=int(db_port),
-                user=db_user,
-                password=db_password,
-                dbname=db_name,
-            ) as conn,
-            conn.cursor() as cur,
-        ):
-            cur.execute("UPDATE products SET quantity = 5 WHERE id = 'prod_002';")
-            conn.commit()
-    except Exception as e:
-        print(f"Warning: Failed to reset database quantity: {e}")
+    if PSYCOPG_INSTALLED and psycopg is not None:
+        try:
+            with (
+                psycopg.connect(
+                    host=db_host,
+                    port=int(db_port),
+                    user=db_user,
+                    password=db_password,
+                    dbname=db_name,
+                ) as conn,
+                conn.cursor() as cur,
+            ):
+                cur.execute("UPDATE products SET quantity = 5 WHERE id = 'prod_002';")
+                conn.commit()
+        except Exception as e:
+            print(f"Warning: Failed to reset database quantity: {e}")
+    else:
+        print("Warning: psycopg not installed, skipping database reset.")
 
     properties = {
         "name": "inventory-reactive-connector",
@@ -131,6 +140,13 @@ def main() -> None:
     print("\n" + "=" * 50)
     print("[Database Event] Modifying 'Smart Water Bottle' quantity to 0 (Out of Stock)...")
     print("=" * 50)
+    if not PSYCOPG_INSTALLED or psycopg is None:
+        print(
+            "Error: psycopg is not installed. Please run `pip install 'pydebeziumai[pgvector]'` to run this pgvector demo."
+        )
+        engine.close()
+        sys.exit(1)
+
     try:
         with (
             psycopg.connect(
