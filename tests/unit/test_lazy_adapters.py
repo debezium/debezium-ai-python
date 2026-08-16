@@ -43,6 +43,18 @@ def test_adapter_import_failure_isolated() -> None:
             "langchain_postgres": None,
         },
     ):
+        # Temporarily pop loaded adapter modules from cache and adapters dict to force reload
+        import pydebeziumai.adapters
+
+        for mod in [
+            "pydebeziumai.adapters.chroma",
+            "pydebeziumai.adapters.milvus",
+            "pydebeziumai.adapters.pgvector",
+        ]:
+            sys.modules.pop(mod, None)
+        for attr in ["ChromaAdapter", "MilvusAdapter", "PGVectorAdapter"]:
+            pydebeziumai.adapters.__dict__.pop(attr, None)
+
         # Accessing non-existent attribute raises standard AttributeError
         with pytest.raises(AttributeError):
             _ = pydebeziumai.adapters.NonExistentAdapter
