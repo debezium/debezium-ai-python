@@ -116,8 +116,8 @@ def test_pgvector_adapter_delete(mock_pgvector: MagicMock) -> None:
     adapter.store.delete.assert_called_once_with(ids=["doc_1"])
 
 
-def test_pgvector_adapter_delete_handles_exception(mock_pgvector: MagicMock) -> None:
-    """Verify that delete gracefully handles exceptions raised by the underlying store."""
+def test_pgvector_adapter_delete_propagates_exception(mock_pgvector: MagicMock) -> None:
+    """Verify that delete propagates exceptions raised by the underlying store."""
     embeddings = FakeEmbeddings(size=128)
     adapter = PGVectorAdapter(
         connection_string="postgresql+psycopg://postgres:secret@localhost:5432/mydb",
@@ -126,8 +126,9 @@ def test_pgvector_adapter_delete_handles_exception(mock_pgvector: MagicMock) -> 
     )
     adapter.store.delete.side_effect = Exception("Database error")
 
-    # This should not raise an exception
-    adapter.delete("doc_1")
+    with pytest.raises(Exception) as exc_info:
+        adapter.delete("doc_1")
+    assert "Database error" in str(exc_info.value)
     adapter.store.delete.assert_called_once_with(ids=["doc_1"])
 
 
