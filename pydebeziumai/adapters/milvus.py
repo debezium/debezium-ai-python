@@ -134,7 +134,7 @@ class MilvusAdapter(VectorStoreAdapter):
             if not key.replace("_", "").isalnum():
                 raise ValueError(f"Invalid metadata filter key name: {key!r}")
             if isinstance(val, str):
-                escaped_val = val.replace("'", "\\'")
+                escaped_val = val.replace("\\", "\\\\").replace("'", "\\'")
                 expr_parts.append(f"{key} == '{escaped_val}'")
             elif isinstance(val, bool):
                 expr_parts.append(f"{key} == {str(val).lower()}")

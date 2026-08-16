@@ -122,3 +122,10 @@ def test_milvus_adapter_metadata_filtering(milvus_adapter: MilvusAdapter) -> Non
     assert len(results) == 1
     doc_id = results[0].id or results[0].metadata.get("pk")
     assert doc_id == "doc_match"
+
+
+def test_milvus_adapter_filter_escaping() -> None:
+    """Verify that filter values containing backslashes and single quotes are escaped safely."""
+    malicious_val = r"\' OR 1 == 1"
+    res = MilvusAdapter._dict_to_milvus_expr({"key": malicious_val})
+    assert res == r"key == '\\\' OR 1 == 1'"
