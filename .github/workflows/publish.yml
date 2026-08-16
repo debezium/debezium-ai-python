@@ -16,13 +16,9 @@ on:
           - pypi
 
 jobs:
-  build-and-publish:
-    name: Build and publish Python distribution
+  build-and-verify:
+    name: Build and Verify Python Distribution
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write      # Required for PyPI/TestPyPI OIDC Trusted Publishing
-      contents: read       # Required for actions/checkout
-
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -38,21 +34,83 @@ jobs:
           python -m pip install --upgrade pip
           pip install build twine
 
+      - name: Verify Git Tag matches Package Version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          # Extract version from pydebeziumai/__init__.py
+          PKG_VERSION=$(python -c "
+          with open('pydebeziumai/__init__.py') as f:
+              for line in f:
+                  if line.startswith('__version__'):
+                      print(line.split('=')[1].strip().strip('\"\''))
+                      break
+          ")
+          echo "Git Tag Version: $TAG_VERSION"
+          echo "Package Version: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: Git tag ($TAG_VERSION) does not match package version ($PKG_VERSION)"
+            exit 1
+          fi
+
       - name: Build Source and Wheel Distributions
         run: python -m build
 
-      - name: Check Package Metadata and Layout
+      - name: Check Package Layout and Metadata
         run: twine check dist/*
 
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-artifacts
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build-and-verify
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-artifacts
+          path: dist/
+
       - name: Publish Package to TestPyPI
-        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
+  publish-pypi:
+    name: Publish to PyPI (Production)
+    needs: [build-and-verify, publish-testpypi]
+    if: |
+      always() &&
+      needs.build-and-verify.result == 'success' &&
+      (
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.publish-testpypi.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+      )
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pydebeziumai
+    permissions:
+      id-token: write
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-artifacts
+          path: dist/
+
       - name: Publish Package to PyPI
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
