@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from langchain_core.documents import Document
@@ -9,7 +10,7 @@ from langchain_core.retrievers import BaseRetriever
 
 from pydebeziumai.adapters.base import VectorStoreAdapter
 from pydebeziumai.models.event import DebeziumEventModel
-from pydebeziumai.sync.manager import DeadLetterQueue, RetryConfig, SyncManager
+from pydebeziumai.sync.manager import DeadLetterQueue, FileDeadLetterQueue, RetryConfig, SyncManager
 from pydebeziumai.transformation.document_builder import DocumentBuilder
 
 
@@ -276,7 +277,7 @@ def test_sync_permanent_error_bypass_retry(
     adapter = FakeVectorStoreAdapter()
 
     # We patch the adapter's upsert to raise a ValueError (permanent error)
-    with patch.object(adapter, "upsert", side_effect=ValueError("Permanent data error")):
+    with patch.object(document_builder, "build", side_effect=ValueError("Permanent data error")):
         dlq = DeadLetterQueue()
         manager = SyncManager(
             document_builder=document_builder,
@@ -333,3 +334,72 @@ def test_sync_ddl_and_unsupported_ops_skipped(
     assert len(adapter.upserts) == 0
     assert len(adapter.deletes) == 0
     assert dlq.is_empty()
+
+
+def test_file_dead_letter_queue(tmp_path: Path) -> None:
+    import os
+
+    """Verify that FileDeadLetterQueue persists failed records to a JSONL file."""
+    from unittest.mock import MagicMock
+
+    from pydebeziumai.models.event import DebeziumEventModel
+
+    filepath = str(tmp_path / "dlq.jsonl")
+    dlq = FileDeadLetterQueue(filepath=filepath)
+
+    event = MagicMock(spec=DebeziumEventModel)
+    event.key = "test_key"
+    event.model_dump.return_value = {"key": "test_key", "value": "test_value"}
+
+    exception = ValueError("Simulated validation error")
+
+    dlq.put(event, exception)
+
+    assert dlq.size() == 1
+    assert os.path.exists(filepath)
+
+    import json
+
+    with open(filepath, encoding="utf-8") as f:
+        line = f.readline()
+        entry = json.loads(line)
+        assert entry["event"]["key"] == "test_key"
+        assert entry["exception_type"] == "ValueError"
+        assert entry["exception_message"] == "Simulated validation error"
+
+
+@patch("time.sleep", return_value=None)
+def test_sync_manager_retries_on_value_error_from_adapter(
+    mock_sleep: MagicMock,
+    document_builder: DocumentBuilder,
+    insert_event: DebeziumEventModel,
+) -> None:
+    """Verify that ValueError raised by adapter is retried, unlike mapping ValueErrors."""
+
+    class ValueErrorVectorStoreAdapter(FakeVectorStoreAdapter):
+        def upsert(self, document: Document) -> None:
+            if self.should_fail and self.failure_count < self.max_failures:
+                self.failure_count += 1
+                raise ValueError("Simulated transient ValueError from database client")
+            super().upsert(document)
+
+    adapter = ValueErrorVectorStoreAdapter()
+    adapter.should_fail = True
+    adapter.max_failures = 2
+
+    dlq = DeadLetterQueue()
+    retry_config = RetryConfig(max_retries=3, initial_delay=0.1)
+
+    manager = SyncManager(
+        document_builder=document_builder,
+        vector_store_adapter=adapter,
+        retry_config=retry_config,
+        dlq=dlq,
+    )
+
+    manager.sync(insert_event)
+
+    # Assert it was retried successfully and ended up passing
+    assert dlq.is_empty()
+    assert adapter.failure_count == 2
+    assert len(adapter.upserts) == 1
