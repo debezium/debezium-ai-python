@@ -73,7 +73,7 @@ A comprehensive test suite is required to prevent regressions, particularly when
 * **Framework**: We use **pytest** as the test runner.
 * **Structure**: Tests are split into:
   - `tests/unit/`: Quick unit tests testing individual components in isolation without external dependencies.
-  - `tests/integration/`: Integration tests requiring real databases or vector stores (typically using containers via Podman/Docker, and Testcontainers).
+  - `tests/integration/`: Integration tests requiring real databases or vector stores (typically using in-memory adapters, local file databases like Milvus-lite, or pre-configured external connection strings).
 * **Asynchronous Tests**: We use `pytest-asyncio` to test asynchronous code. Mark async tests using `pytest.mark.asyncio` or rely on `asyncio_mode = "auto"` in `pyproject.toml`.
 * **Run Tests**:
   ```bash
