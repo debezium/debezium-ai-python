@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 _PERMANENT_ERRORS = (ValueError, TypeError, KeyError, AttributeError, NameError, ImportError)
 
 
+class PermanentSyncError(Exception):
+    """Raised when an event cannot be processed due to configuration or mapping errors."""
+
+    pass
+
+
 class DeadLetterQueue:
     """Thread-safe Dead Letter Queue (DLQ) to hold failed events."""
 
@@ -74,6 +80,38 @@ class DeadLetterQueue:
     def is_empty(self) -> bool:
         """Check if the DLQ is empty."""
         return self._queue.empty()
+
+
+class FileDeadLetterQueue(DeadLetterQueue):
+    """Thread-safe Dead Letter Queue (DLQ) that persists failed events to a JSONL file."""
+
+    def __init__(self, filepath: str, max_size: int = 1000) -> None:
+        """Initialises the FileDeadLetterQueue.
+
+        Args:
+            filepath: Absolute path to the JSONL file for persisting failed events.
+            max_size: Maximum number of events to hold in the in-memory queue.
+        """
+        super().__init__(max_size=max_size)
+        self.filepath = filepath
+
+    def put(self, event: DebeziumEventModel, exception: Exception) -> None:
+        """Add a failed event and exception to the DLQ and write to the file."""
+        super().put(event, exception)
+        import json
+        import time
+
+        try:
+            entry = {
+                "event": event.model_dump(),
+                "exception_type": exception.__class__.__name__,
+                "exception_message": str(exception),
+                "timestamp": time.time(),
+            }
+            with open(self.filepath, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as exc:
+            logger.error("Failed to write event key=%s to DLQ file: %s", event.key, exc)
 
 
 class RetryConfig:
@@ -155,7 +193,7 @@ class SyncManager:
             try:
                 func(*args, **kwargs)
                 return
-            except _PERMANENT_ERRORS as exc:
+            except PermanentSyncError as exc:
                 logger.error("Permanent error encountered during %s: %s. Bypassing retries.", description, exc)
                 raise exc
             except Exception as exc:
@@ -203,20 +241,29 @@ class SyncManager:
             )
             return
 
-        doc_id = self.document_builder.id_strategy.generate(event)
+        try:
+            doc_id = self.document_builder.id_strategy.generate(event)
+        except _PERMANENT_ERRORS as exc:
+            raise PermanentSyncError(f"ID generation failed: {exc}") from exc
 
         if op in ("c", "r"):
             logger.info("Syncing insert/snapshot for doc_id=%s (destination=%s)", doc_id, event.destination)
-            build_result = self.document_builder.build(event)
+            try:
+                build_result = self.document_builder.build(event)
+            except _PERMANENT_ERRORS as exc:
+                raise PermanentSyncError(f"Mapping or validation failed: {exc}") from exc
             if build_result.document is None:
-                raise ValueError(f"DocumentBuilder built a None document for create/read event: {event}")
+                raise PermanentSyncError(f"DocumentBuilder built a None document for create/read event: {event}")
             self.vector_store_adapter.upsert(build_result.document)
 
         elif op == "u":
             logger.info("Syncing update (delete + upsert) for doc_id=%s (destination=%s)", doc_id, event.destination)
-            build_result = self.document_builder.build(event)
+            try:
+                build_result = self.document_builder.build(event)
+            except _PERMANENT_ERRORS as exc:
+                raise PermanentSyncError(f"Mapping or validation failed: {exc}") from exc
             if build_result.document is None:
-                raise ValueError(f"DocumentBuilder built a None document for update event: {event}")
+                raise PermanentSyncError(f"DocumentBuilder built a None document for update event: {event}")
 
             self.vector_store_adapter.delete(doc_id)
             self.vector_store_adapter.upsert(build_result.document)
@@ -224,9 +271,12 @@ class SyncManager:
         elif op == "d":
             if self.soft_delete:
                 logger.info("Syncing soft-delete (upsert) for doc_id=%s (destination=%s)", doc_id, event.destination)
-                build_result = self.document_builder.build(event, allow_soft_delete=True)
+                try:
+                    build_result = self.document_builder.build(event, allow_soft_delete=True)
+                except _PERMANENT_ERRORS as exc:
+                    raise PermanentSyncError(f"Mapping or validation failed: {exc}") from exc
                 if build_result.document is None:
-                    raise ValueError(f"DocumentBuilder built a None document for soft-delete event: {event}")
+                    raise PermanentSyncError(f"DocumentBuilder built a None document for soft-delete event: {event}")
                 self.vector_store_adapter.upsert(build_result.document)
             else:
                 logger.info("Syncing hard-delete for doc_id=%s (destination=%s)", doc_id, event.destination)

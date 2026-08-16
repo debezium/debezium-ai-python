@@ -97,11 +97,8 @@ class PGVectorAdapter(VectorStoreAdapter):
         Args:
             doc_id: The stable ID of the document to remove.
         """
-        try:
-            logger.debug("PGVector delete: %s", doc_id)
-            self._store.delete(ids=[doc_id])
-        except Exception as exc:
-            logger.debug("PGVector delete skipped for %r: %s", doc_id, exc)
+        logger.debug("PGVector delete: %s", doc_id)
+        self._store.delete(ids=[doc_id])
 
     def delete_batch(self, doc_ids: list[str]) -> None:
         """Remove a list of documents by their stable IDs in bulk.
@@ -111,11 +108,8 @@ class PGVectorAdapter(VectorStoreAdapter):
         """
         if not doc_ids:
             return
-        try:
-            logger.debug("PGVector delete_batch: %d documents", len(doc_ids))
-            self._store.delete(ids=doc_ids)
-        except Exception as exc:
-            logger.debug("PGVector delete_batch skipped: %s", exc)
+        logger.debug("PGVector delete_batch: %d documents", len(doc_ids))
+        self._store.delete(ids=doc_ids)
 
     def as_retriever(
         self,

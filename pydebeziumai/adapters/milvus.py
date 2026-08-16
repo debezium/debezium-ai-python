@@ -112,11 +112,8 @@ class MilvusAdapter(VectorStoreAdapter):
         Args:
             doc_id: The stable ID of the document to remove.
         """
-        try:
-            logger.debug("Milvus delete: %s", doc_id)
-            self._store.delete(ids=[doc_id])
-        except Exception as exc:
-            logger.debug("Milvus delete skipped for %r: %s", doc_id, exc)
+        logger.debug("Milvus delete: %s", doc_id)
+        self._store.delete(ids=[doc_id])
 
     def delete_batch(self, doc_ids: list[str]) -> None:
         """Remove a list of documents by their stable IDs in bulk.
@@ -126,17 +123,16 @@ class MilvusAdapter(VectorStoreAdapter):
         """
         if not doc_ids:
             return
-        try:
-            logger.debug("Milvus delete_batch: %d documents", len(doc_ids))
-            self._store.delete(ids=doc_ids)
-        except Exception as exc:
-            logger.debug("Milvus delete_batch skipped: %s", exc)
+        logger.debug("Milvus delete_batch: %d documents", len(doc_ids))
+        self._store.delete(ids=doc_ids)
 
     @staticmethod
     def _dict_to_milvus_expr(filter_dict: dict[str, Any]) -> str:
         """Helper to convert a dictionary of metadata filters into a Milvus boolean expression string."""
         expr_parts = []
         for key, val in filter_dict.items():
+            if not key.replace("_", "").isalnum():
+                raise ValueError(f"Invalid metadata filter key name: {key!r}")
             if isinstance(val, str):
                 escaped_val = val.replace("'", "\\'")
                 expr_parts.append(f"{key} == '{escaped_val}'")
