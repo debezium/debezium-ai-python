@@ -27,7 +27,7 @@ jobs:
             fi
 
             while [ $ATTEMPT -le $MAX_RETRIES ]; do
-              RESPONSE=$(curl --silent -w "%{http_code}" -X "GET" $URL)
+              RESPONSE=$(curl --silent -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -w "%{http_code}" -X "GET" $URL)
               HTTP_CODE="${RESPONSE: -3}"
               BODY="${RESPONSE:: -3}"
 

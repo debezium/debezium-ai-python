@@ -2,6 +2,7 @@
 
 import sys
 from unittest.mock import patch
+
 import pytest
 
 import pydebeziumai.adapters
@@ -10,14 +11,17 @@ import pydebeziumai.adapters
 def test_adapters_module_imports_cleanly() -> None:
     """Verify that pydebeziumai.adapters can be imported even if backends are not installed."""
     # Mock missing backends
-    with patch.dict(sys.modules, {
-        "chromadb": None,
-        "langchain_chroma": None,
-        "pymilvus": None,
-        "langchain_milvus": None,
-        "psycopg": None,
-        "langchain_postgres": None,
-    }):
+    with patch.dict(
+        sys.modules,
+        {
+            "chromadb": None,
+            "langchain_chroma": None,
+            "pymilvus": None,
+            "langchain_milvus": None,
+            "psycopg": None,
+            "langchain_postgres": None,
+        },
+    ):
         # Retrieve directory listing to verify attributes are present
         attrs = dir(pydebeziumai.adapters)
         assert "ChromaAdapter" in attrs
@@ -28,14 +32,17 @@ def test_adapters_module_imports_cleanly() -> None:
 
 def test_adapter_import_failure_isolated() -> None:
     """Verify that ModuleNotFoundError is only raised when a missing adapter is accessed."""
-    with patch.dict(sys.modules, {
-        "chromadb": None,
-        "langchain_chroma": None,
-        "pymilvus": None,
-        "langchain_milvus": None,
-        "psycopg": None,
-        "langchain_postgres": None,
-    }):
+    with patch.dict(
+        sys.modules,
+        {
+            "chromadb": None,
+            "langchain_chroma": None,
+            "pymilvus": None,
+            "langchain_milvus": None,
+            "psycopg": None,
+            "langchain_postgres": None,
+        },
+    ):
         # Accessing non-existent attribute raises standard AttributeError
         with pytest.raises(AttributeError):
             _ = pydebeziumai.adapters.NonExistentAdapter

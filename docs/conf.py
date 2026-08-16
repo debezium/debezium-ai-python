@@ -33,6 +33,16 @@ intersphinx_mapping = {
 }
 
 # Autodoc configuration
+autoclass_content = "both"
+autodoc_mock_imports = [
+    "pydbzengine",
+    "chromadb",
+    "langchain_chroma",
+    "pymilvus",
+    "langchain_milvus",
+    "psycopg",
+    "langchain_postgres",
+]
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
 autodoc_default_options = {
