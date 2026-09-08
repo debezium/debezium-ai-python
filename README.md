@@ -2,11 +2,14 @@
 
 > Real-time CDC Integration for LangChain & LangGraph using Debezium
 
+[![Documentation Status](https://readthedocs.org/projects/debezium-ai-python/badge/?version=latest)](https://debezium-ai-python.readthedocs.io/en/latest/?badge=latest)
 [![CI](https://github.com/debezium/debezium-ai-python/actions/workflows/ci.yml/badge.svg)](https://github.com/debezium/debezium-ai-python/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 
 PyDebeziumAI bridges **Debezium CDC streams** with **LangChain** and **LangGraph**, keeping your vector store automatically in sync with relational database changes — in real time.
+
+**Documentation**: Complete user guides, tutorials, and API reference are available at [debezium-ai-python.readthedocs.io](https://debezium-ai-python.readthedocs.io/en/latest/).
 
 ## Why PyDebeziumAI?
 
