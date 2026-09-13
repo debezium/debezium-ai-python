@@ -27,7 +27,7 @@ class PGVectorAdapter(VectorStoreAdapter):
         """Initialises the PGVectorAdapter.
 
         Args:
-            connection_string: SQLAlchemy async connection URL.
+            connection_string: SQLAlchemy-style connection URL (e.g. postgresql+psycopg://); both sync and async drivers are supported.
             collection_name: Table name for this embedding collection.
             embeddings: Embeddings model to generate vector representations.
             pre_delete_collection: Drop and recreate collection on init (default False).
