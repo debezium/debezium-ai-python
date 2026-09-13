@@ -8,6 +8,27 @@
 
 PyDebeziumAI bridges **Debezium CDC streams** with **LangChain** and **LangGraph**, keeping your vector store automatically in sync with relational database changes — in real time.
 
+## Environment & Prerequisites
+
+PyDebeziumAI requires Java 17+ for running the embedded Debezium JVM engine. Set your `JAVA_HOME` environment variable for your operating system:
+
+```bash
+# Linux
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+# macOS
+export JAVA_HOME=$(/usr/libexec/java_home -v17)
+
+# Windows (PowerShell / Command Prompt)
+set JAVA_HOME=C:\Program Files\Java\jdk-17
+```
+
+Download Debezium engine dependencies using the cross-platform setup script:
+
+```bash
+python tools/setup_jars.py
+```
+
 ## Why PyDebeziumAI?
 
 Most RAG pipelines go stale because they rely on periodic batch reloads. PyDebeziumAI uses Debezium's Change Data Capture to push every `INSERT`, `UPDATE`, and `DELETE` into your vector store the moment it happens.
@@ -33,7 +54,7 @@ rag = LiveContext(
         "database.hostname": "localhost",
         "database.port": "5432",
         "database.user": "postgres",
-        "database.password": "secret",
+        "database.password": "postgrespassword",
         "database.dbname": "mydb",
         "database.server.name": "myserver",
         "topic.prefix": "myserver",
@@ -54,9 +75,14 @@ retriever = rag.as_retriever(search_kwargs={"k": 5})
 docs = retriever.invoke("What products are available under $50?")
 ```
 
+
+
+### Offset Checkpoint Replay Behavior
+On application restart, events processed since the last `offset.flush.interval.ms` (default 5000ms) checkpoint may be redelivered by the Debezium engine. PyDebeziumAI handles this safely because all writes are idempotent upserts keyed by primary-key document IDs.
+
 ## Features
 
-- **Real-time sync** — CDC events flow into your vector store within milliseconds
+- **Real-time sync** — Push-based WAL capture with low-latency delivery (typically ~280–500ms total vector indexing wall-clock time depending on embedding model & vector DB)
 - **Deterministic IDs** — same row always maps to same document ID (correct upsert/delete semantics)
 - **Pluggable backends** — Chroma, PGVector, Milvus (more coming)
 - **Local embeddings** — works offline with `sentence-transformers`, no API key needed

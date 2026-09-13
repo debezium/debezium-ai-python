@@ -15,6 +15,7 @@ pydebeziumai provides real-time CDC (Change Data Capture) integration for LangCh
    quickstart
    architecture
    compatibility
+   troubleshooting
    contributing
    changelog
 
