@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import contextlib
 import os
+import tempfile
 import uuid
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from langchain_core.documents import Document
@@ -19,9 +21,10 @@ def milvus_adapter() -> Generator[MilvusAdapter, None, None]:
     """Fixture providing a MilvusAdapter pointing to a local Milvus Lite DB."""
     pytest.importorskip("langchain_milvus")
     pytest.importorskip("pymilvus")
+    pytest.importorskip("milvus_lite")
 
-    # Use a short unique DB name to satisfy Milvus Lite's < 36 characters constraint
-    unique_db_path = f"/tmp/m_{uuid.uuid4().hex[:8]}.db"
+    # Use a short unique DB name in temp directory to satisfy cross-platform path requirements and Milvus Lite's < 36 characters constraint
+    unique_db_path = str(Path(tempfile.gettempdir()) / f"m_{uuid.uuid4().hex[:8]}.db")
 
     embeddings = FakeEmbeddings(size=128)
     adapter = MilvusAdapter(
@@ -69,7 +72,7 @@ def test_milvus_adapter_import_error() -> None:
             MilvusAdapter(
                 collection_name="test_collection",
                 embeddings=embeddings,
-                connection_uri="/tmp/milvus_dummy.db",
+                connection_uri=str(Path(tempfile.gettempdir()) / "milvus_dummy.db"),
             )
         assert "Milvus backend requires" in str(exc_info.value)
 
