@@ -65,7 +65,9 @@ class MilvusAdapter(VectorStoreAdapter):
 
         # Ensure the pymilvus connections manager has this connection registered.
         # This prevents connection not found errors during operations.
-        alias = connection_args.get("alias", "default")
+        import hashlib
+        uri_hash = hashlib.md5(connection_uri.encode("utf-8")).hexdigest()[:8]
+        alias = connection_args.get("alias", f"pydebeziumai_{uri_hash}")
         if not connections.has_connection(alias):
             connections.connect(alias=alias, uri=connection_args["uri"])
 
@@ -78,7 +80,7 @@ class MilvusAdapter(VectorStoreAdapter):
         )
 
     def upsert(self, document: Document) -> None:
-        """Add or replace a document in the vector store.
+        """Add or replace a document in the vector store atomically.
 
         Args:
             document: The LangChain Document to upsert.
@@ -86,11 +88,10 @@ class MilvusAdapter(VectorStoreAdapter):
         if not document.id:
             raise ValueError("Document ID must be provided for idempotent upserts.")
         logger.debug("Milvus upsert: %s", document.id)
-        self.delete(document.id)
         self._store.add_documents(documents=[document], ids=[document.id])
 
     def upsert_batch(self, documents: list[Document]) -> None:
-        """Add or replace a list of documents in the vector store.
+        """Add or replace a list of documents in the vector store atomically.
 
         Args:
             documents: The list of LangChain Documents to upsert.
@@ -103,7 +104,6 @@ class MilvusAdapter(VectorStoreAdapter):
                 raise ValueError("Document ID must be provided for idempotent upserts.")
             ids.append(doc.id)
         logger.debug("Milvus upsert_batch: %d documents", len(documents))
-        self.delete_batch(ids)
         self._store.add_documents(documents=documents, ids=ids)
 
     def delete(self, doc_id: str) -> None:
@@ -113,7 +113,13 @@ class MilvusAdapter(VectorStoreAdapter):
             doc_id: The stable ID of the document to remove.
         """
         logger.debug("Milvus delete: %s", doc_id)
-        self._store.delete(ids=[doc_id])
+        try:
+            self._store.delete(ids=[doc_id])
+        except Exception as exc:
+            if "collection not found" in str(exc).lower() or "not exist" in str(exc).lower():
+                logger.debug("Milvus delete ignored for missing collection: %s", exc)
+            else:
+                raise
 
     def delete_batch(self, doc_ids: list[str]) -> None:
         """Remove a list of documents by their stable IDs in bulk.
@@ -124,7 +130,13 @@ class MilvusAdapter(VectorStoreAdapter):
         if not doc_ids:
             return
         logger.debug("Milvus delete_batch: %d documents", len(doc_ids))
-        self._store.delete(ids=doc_ids)
+        try:
+            self._store.delete(ids=doc_ids)
+        except Exception as exc:
+            if "collection not found" in str(exc).lower() or "not exist" in str(exc).lower():
+                logger.debug("Milvus delete_batch ignored for missing collection: %s", exc)
+            else:
+                raise
 
     @staticmethod
     def _dict_to_milvus_expr(filter_dict: dict[str, Any]) -> str:
@@ -138,10 +150,12 @@ class MilvusAdapter(VectorStoreAdapter):
                 expr_parts.append(f"{key} == '{escaped_val}'")
             elif isinstance(val, bool):
                 expr_parts.append(f"{key} == {str(val).lower()}")
+            elif isinstance(val, (int, float)):
+                expr_parts.append(f"{key} == {val}")
             elif val is None:
                 expr_parts.append(f"{key} == None")
             else:
-                expr_parts.append(f"{key} == {val}")
+                raise ValueError(f"Unsupported metadata filter value type for key {key!r}: {type(val)}")
         return " and ".join(expr_parts)
 
     def as_retriever(
