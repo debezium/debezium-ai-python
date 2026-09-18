@@ -30,7 +30,7 @@ class VectorStoreAdapter(ABC):
         Add or replace a document in the vector store.
 
         The implementation should use the ``document.id`` field as the
-        canonical identifier for idempotent upserts.
+        canonical identifier and perform a single atomic upsert operation.
         """
         ...
 
