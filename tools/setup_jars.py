@@ -17,7 +17,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-DEBEZIUM_VERSION = "3.0.0.Final"
+DEBEZIUM_VERSION = "3.7.0.Beta2"
 PYDBZENGINE_MIN_VERSION = "3.4.1.0"
 COMMON_ZIP_URL = f"https://repo1.maven.org/maven2/io/debezium/debezium-embedded/{DEBEZIUM_VERSION}/debezium-embedded-{DEBEZIUM_VERSION}-embedded-common.zip"
 
