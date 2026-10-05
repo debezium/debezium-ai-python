@@ -2,7 +2,8 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from pydbzengine._jvm import Properties  # noqa: F401
+
+pytest.importorskip("pydbzengine")
 
 from pydebeziumai.ingestion.base import BaseIngestionHandler
 from pydebeziumai.ingestion.connect_handler import ConnectIngestionHandler
@@ -50,6 +51,17 @@ def test_dispatch_event_swallows_with_error_callbacks() -> None:
     assert isinstance(errors[0], ValueError)
 
 
+try:
+    import jpype
+
+    has_jvm = jpype.isJVMStarted()
+except Exception:
+    has_jvm = False
+
+requires_jvm = pytest.mark.skipif(not has_jvm, reason="JPype JVM is not running")
+
+
+@requires_jvm
 def test_json_handler_propagates_exception_without_error_callbacks() -> None:
     handler = JsonIngestionHandler()
     handler_cls = handler._make_handler_class()
@@ -60,6 +72,7 @@ def test_json_handler_propagates_exception_without_error_callbacks() -> None:
         json_handler_inst.handleJsonBatch([None])
 
 
+@requires_jvm
 def test_json_handler_calls_error_callback_and_swallows() -> None:
     handler = JsonIngestionHandler()
     errors = []
@@ -73,6 +86,7 @@ def test_json_handler_calls_error_callback_and_swallows() -> None:
     assert len(errors) == 1
 
 
+@requires_jvm
 def test_connect_handler_propagates_exception_without_error_callbacks() -> None:
     handler = ConnectIngestionHandler()
     consumer_cls = handler._make_consumer_class()
@@ -88,6 +102,7 @@ def test_connect_handler_propagates_exception_without_error_callbacks() -> None:
     mock_committer.markProcessed.assert_not_called()
 
 
+@requires_jvm
 def test_connect_handler_calls_error_callback_and_swallows() -> None:
     handler = ConnectIngestionHandler()
     errors = []
