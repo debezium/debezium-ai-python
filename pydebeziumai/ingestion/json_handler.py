@@ -46,7 +46,7 @@ class JsonIngestionHandler(BaseIngestionHandler):
 
         outer = self
 
-        class _JsonHandler(BasePythonChangeHandler):  # type: ignore[misc]
+        class _JsonHandler(BasePythonChangeHandler):  # type: ignore[misc, unused-ignore]
             def handleJsonBatch(self, records: list[Any]) -> None:  # noqa: N802
                 for record in records:
                     try:

@@ -75,7 +75,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/debezium/debezium-ai-python"
-Documentation = "https://github.com/debezium/debezium-ai-python"
+Documentation = "https://debezium-ai-python.readthedocs.io/"
 Issues = "https://github.com/debezium/dbz/issues"
 
 [tool.hatch.version]
